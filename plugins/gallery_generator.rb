@@ -9,8 +9,8 @@ $image_extensions = [".png", ".jpg", ".jpeg", ".gif"]
 
 module Jekyll
   class GalleryFile < StaticFile
-    def write(dest)
-      return false
+    def destination(dest)
+      File.join(dest, "#{@site.config['gallery_dir']}/#{@dir}", @name)
     end
   end
 
@@ -18,7 +18,7 @@ module Jekyll
     def initialize(site, base, dir, galleries)
       @site = site
       @base = base
-      @dir = dir
+      @dir = site.config['gallery_dir']
       @name = "index.html"
 
       self.process(@name)
@@ -29,6 +29,7 @@ module Jekyll
         galleries.sort! {|a,b| b.data["date_time"] <=> a.data["date_time"]}
       rescue Exception => e
         puts e
+        throw e
       end
       galleries.each {|gallery| self.data["galleries"].push(gallery.data)}
     end
@@ -38,52 +39,52 @@ module Jekyll
     def initialize(site, base, dir, gallery_name)
       @site = site
       @base = base
-      @dir = dir
+      @dir = "#{site.config['gallery_dir']}/#{gallery_name}"
       @name = "index.html"
       @images = []
 
-      meta = YAML::load "#{dir}/meta.yaml"
+      meta = YAML.load_file "#{dir}/meta.yml"
 
       best_image = nil
       max_size = 300
       self.process(@name)
       self.read_yaml(File.join(base, "_layouts"), "gallery_page.html")
       self.data["gallery"] = gallery_name
-      gallery_title_prefix = site.config["gallery_title_prefix"] || "Photos: "
-      gallery_name = meta[:title]
-      self.data["name"] = gallery_name
-      self.data["title"] = "#{gallery_title_prefix}#{gallery_name}"
-      thumbs_dir = "#{site.dest}/#{dir}/thumbs"
+      gallery_title_prefix = site.config["gallery_title_prefix"] || ""
 
-      FileUtils.mkdir_p(thumbs_dir, :mode => 0755)
+      self.data["name"] = gallery_name
+      self.data["title"] = "#{gallery_title_prefix}#{meta["title"]}"
+      self.data["photos"] = {}
+      self.data["comments"] = meta["comments"]
+      self.data["description"] = meta["description"]
+
+      thumbs_dir = "#{base}/_galleries/#{gallery_name}/thumbs"
+      FileUtils.mkdir_p thumbs_dir
+
       Dir.foreach(dir) do |image|
         if image.chars.first != "." and image.downcase().end_with?(*$image_extensions)
           @images.push(image)
           best_image = image
-          @site.static_files << GalleryFile.new(site, base, "#{dir}/thumbs/", image)
+
           if File.file?("#{thumbs_dir}/#{image}") == false or File.mtime("#{dir}/#{image}") > File.mtime("#{thumbs_dir}/#{image}")
-            begin
-              m_image = ImageList.new("#{dir}/#{image}")
-              m_image.resize_to_fit!(max_size, max_size)
-              puts "Writing thumbnail to #{thumbs_dir}/#{image}"
-              m_image.write("#{thumbs_dir}/#{image}")
-            rescue
-              puts "error"
-              puts $!
-            end
+            m_image = ImageList.new("#{dir}/#{image}")
+            m_image.resize_to_fit!(max_size, max_size)
+            puts "Writing thumbnail to #{thumbs_dir}/#{image}"
+            m_image.write("#{thumbs_dir}/#{image}")
           end
+
+          @site.static_files << GalleryFile.new(site, "#{base}/_galleries", "#{gallery_name}/thumbs", "#{image}")
+          @site.static_files << GalleryFile.new(site, "#{base}/_galleries", gallery_name, image)
+
+          self.data["photos"][image] = meta["photos"][image] || ""
         end
       end
       self.data["images"] = @images
-      begin
-        best_image = meta[:cover]
-      rescue
-      end
+
+      best_image = meta[:cover] if File.file? "#{dir}/#{meta[:cover]}"
+
       self.data["best_image"] = best_image
-      begin
-        self.data["date_time"] = EXIFR::JPEG.new("#{dir}/#{best_image}").date_time.to_i
-      rescue
-      end
+      self.data["date_time"] = EXIFR::JPEG.new("#{dir}/#{best_image}").date_time.to_i
     end
   end
 
@@ -94,21 +95,19 @@ module Jekyll
       unless site.layouts.key? "gallery_index"
         return
       end
-      dir = site.config["gallery_dir"] || "galleries"
+      # dir = site.config["gallery_dir"] || "_galleries"
+      dir = "#{site.source}/_galleries"
       galleries = []
-      begin
-        Dir.foreach(dir) do |gallery_dir|
-          gallery_path = File.join(dir, gallery_dir)
-          if File.directory?(gallery_path) and gallery_dir.chars.first != "."
-            gallery = GalleryPage.new(site, site.source, gallery_path, gallery_dir)
-            gallery.render(site.layouts, site.site_payload)
-            gallery.write(site.dest)
-            site.pages << gallery
-            galleries << gallery
-          end
+
+      Dir.foreach(dir) do |gallery_dir|
+        gallery_path = File.join(dir, gallery_dir)
+        if File.directory?(gallery_path) and gallery_dir.chars.first != "."
+          gallery = GalleryPage.new(site, site.source, gallery_path, gallery_dir)
+          gallery.render(site.layouts, site.site_payload)
+          gallery.write(site.dest)
+          site.pages << gallery
+          galleries << gallery
         end
-      rescue
-        puts $!
       end
 
       gallery_index = GalleryIndex.new(site, site.source, dir, galleries)

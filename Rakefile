@@ -42,6 +42,7 @@ task :install, :theme do |t, args|
   mkdir_p "sass"
   cp_r "#{themes_dir}/#{theme}/sass/.", "sass"
   mkdir_p "#{source_dir}/#{posts_dir}"
+  mkdir_p "#{source_dir}/#{galleries_dir}"
   mkdir_p public_dir
 end
 
