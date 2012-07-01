@@ -21,9 +21,11 @@ blog_index_dir  = 'source'    # directory for your blog's index page (if you put
 deploy_dir      = "_deploy"   # deploy directory (for Github pages deployment)
 stash_dir       = "_stash"    # directory to stash posts for speedy generation
 posts_dir       = "_posts"    # directory for blog files
+galleries_dir       = "_galleries"    # directory for blog files
 themes_dir      = ".themes"   # directory for blog files
 new_post_ext    = "markdown"  # default new post file extension when using the new_post task
 new_page_ext    = "markdown"  # default new page file extension when using the new_page task
+new_gallery_ext    = "yml"  # default new post file extension when using the new_post task
 server_port     = "4000"      # port for preview server eg. localhost:4000
 
 
@@ -108,6 +110,31 @@ task :new_post, :title do |t, args|
     post.puts "comments: true"
     post.puts "categories: "
     post.puts "---"
+  end
+end
+
+# usage rake new_post[my-new-gallery] or rake new_post['my new gallery'] or rake new_gallery (defaults to "new-gallery")
+desc "Begin a new gallery in #{source_dir}/#{galleries_dir}"
+task :new_gallery, :title do |t, args|
+  raise "### You haven't set anything up yet. First run `rake install` to set up an Octopress theme." unless File.directory?(source_dir)
+  args.with_defaults(:title => 'new-post')
+  title = args.title
+  mkdir_p "#{source_dir}/#{galleries_dir}/#{title}"
+  filename = "#{source_dir}/#{galleries_dir}/#{title}/meta.#{new_gallery_ext}"
+  if File.exist?(filename)
+    abort("rake aborted!") if ask("#{filename} already exists. Do you want to overwrite?", ['y', 'n']) == 'n'
+  end
+  puts "Creating new Gallery: #{title}"
+  open(filename, 'w') do |gallery|
+    gallery.puts "title: \"#{title.gsub(/&/,'&amp;')}\""
+    gallery.puts "date: #{Time.now.strftime('%Y-%m-%d %H:%M')}"
+    gallery.puts "comments: true"
+    gallery.puts "cover: "
+    gallery.puts "description: "
+    gallery.puts "# If you want detail photos, uncomment above."
+    gallery.puts "#photos:"
+    gallery.puts '#  "filename1" : "description"'
+    gallery.puts '#  "filename2" : "description"'
   end
 end
 

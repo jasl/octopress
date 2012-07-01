@@ -1,5 +1,6 @@
 require 'exifr'
 require 'RMagick'
+require 'yaml'
 include Magick
 
 include FileUtils
@@ -41,13 +42,15 @@ module Jekyll
       @name = "index.html"
       @images = []
 
+      meta = YAML::load "#{dir}/meta.yaml"
+
       best_image = nil
       max_size = 300
       self.process(@name)
       self.read_yaml(File.join(base, "_layouts"), "gallery_page.html")
       self.data["gallery"] = gallery_name
       gallery_title_prefix = site.config["gallery_title_prefix"] || "Photos: "
-      gallery_name = gallery_name.gsub("_", " ").gsub(/\w+/) {|word| word.capitalize}
+      gallery_name = meta[:title]
       self.data["name"] = gallery_name
       self.data["title"] = "#{gallery_title_prefix}#{gallery_name}"
       thumbs_dir = "#{site.dest}/#{dir}/thumbs"
@@ -73,7 +76,7 @@ module Jekyll
       end
       self.data["images"] = @images
       begin
-        best_image = site.config["galleries"][self.data["gallery"]]["best_image"]
+        best_image = meta[:cover]
       rescue
       end
       self.data["best_image"] = best_image
@@ -91,7 +94,7 @@ module Jekyll
       unless site.layouts.key? "gallery_index"
         return
       end
-      dir = site.config["gallery_dir"] || "photos"
+      dir = site.config["gallery_dir"] || "galleries"
       galleries = []
       begin
         Dir.foreach(dir) do |gallery_dir|
